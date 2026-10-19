@@ -121,12 +121,22 @@ streamlit run app.py
 - 서버가 해외(미국)에 있으므로, 일부 언론사가 해외 접속을 막으면 해당 기사는 네이버 뉴스 페이지로 보완하거나 `본문 확인 불가`로 표시됩니다.
 - 기관 보안 정책상 외부 클라우드 사용에 승인이 필요한지 확인하세요.
 
+### 3-2. 이 PC에서 바로 HTTPS로 공개 (임시, 계정 불필요)
+
+`start_public.bat` 을 더블클릭하면 앱 서버와 Cloudflare 임시 터널이 실행되고,
+터널 창에 표시되는 `https://….trycloudflare.com` 주소로 외부에서 접속할 수 있습니다.
+
+- `.env` 에 `APP_PASSWORD` 가 설정되어 있어야 실행됩니다 (외부 접속자는 비밀번호 입력 후 사용).
+- 이 PC가 켜져 있고 두 창이 열려 있는 동안만 접속됩니다. 실행할 때마다 주소가 바뀝니다.
+- 상시 운영은 3-1(Streamlit Cloud) 또는 사내 서버 설치를 권장합니다.
+
 ---
 
 ## 4. 폴더 구조
 
 ```text
 .
+├─ start_public.bat        # 이 PC에서 HTTPS 임시 공개 (cloudflared)
 ├─ app.py                  # Streamlit 화면 (검색 조건, 진행 표시, 결과 탭, 필터, 다운로드)
 ├─ requirements.txt
 ├─ .env.example            # 환경변수 예시 (.env 는 Git 제외)
