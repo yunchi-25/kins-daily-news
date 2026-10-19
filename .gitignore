@@ -32,3 +32,6 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# 로컬 도구 (cloudflared 등)
+tools/
