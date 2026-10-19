@@ -17,14 +17,16 @@ from .patterns import (
     ENTERTAIN_RE,
     EVENT_RE,
     FOREIGN_RE,
+    GOV_LEVEL_RE,
     KINS_RE,
-    KOREAN_GOV_STRONG_RE,
+    LOCAL_GOV_RE,
     MEDICAL_EXCEPT_RE,
     MEDICAL_RE,
     MOU_RE,
     NOISE_RE,
     NSSC_RE,
     NUCLEAR_RE,
+    PHOTO_CAPTION_RE,
     PHOTO_RE,
     PROMO_RE,
     PUBLIC_RE,
@@ -79,7 +81,7 @@ def hard_exclusion(title: str, article: NewsArticle | None = None) -> str | None
         return "수상·시상 기사"
     if has(PROMO_RE, t) and not (core_t or has(SAFETY_RE, t)):
         return "제품 출시·기업 홍보 기사"
-    if has(MOU_RE, t) and not (core_t or has(FOREIGN_RE, t) or has(KOREAN_GOV_STRONG_RE, t)):
+    if has(MOU_RE, t) and not (core_t or has(GOV_LEVEL_RE, t)):
         return "단순 MOU·협약 체결 홍보 기사"
     if has(AI_SEMI_RE, t) and nuc_t == 0 and not core_t:
         return "반도체·AI·데이터센터 중심 기사(원자력 비중 낮음)"
@@ -87,6 +89,8 @@ def hard_exclusion(title: str, article: NewsArticle | None = None) -> str | None
         return "의료·치료 중심 기사"
     if has(STRIFE_RE, t) and nuc_t == 0 and not has(PUBLIC_RE, t) and not core_t:
         return "정쟁·정치적 비난 중심 기사"
+    if has(LOCAL_GOV_RE, t) and nuc_t == 0 and not core_t:
+        return "지자체·지방의회 중심 기사"
     return None
 
 
@@ -192,6 +196,9 @@ def assess(article: NewsArticle) -> tuple[bool, str]:
 
     if has(PHOTO_RE, title) and len(text) < 300:
         return False, "내용이 거의 없는 사진·영상 기사"
+    if text and len(text) < 500 and has(PHOTO_CAPTION_RE, text):
+        # 사진 설명만 있는 기사: "…하고 있다. 2026.10.19. ks@newsis.com" 형태로 끝나는 짧은 글
+        return False, "내용이 거의 없는 사진 기사"
 
     person_reason = apply_person_rules(article)
     if person_reason:
@@ -214,9 +221,11 @@ def assess(article: NewsArticle) -> tuple[bool, str]:
         lead = text[:400]
         nb = count(NUCLEAR_RE, text)
         pb = count(PUBLIC_RE, text)
-        if (nb >= 3 and has(NUCLEAR_RE, lead)) or nb >= 5:
+        # 제목에 핵심어가 없으면 본문 첫 부분(리드)에도 나와야 중심 내용으로 본다.
+        # (원문 페이지의 사이드바·관련기사 제목이 본문에 섞여 언급 수가 부풀려지는 경우 방지)
+        if nb >= 3 and has(NUCLEAR_RE, lead):
             return True, "본문 중심 내용이 원자력·방사선 관련"
-        if pb >= 3 and has(PUBLIC_RE, lead):
+        if pb >= 4 and has(PUBLIC_RE, lead):
             return True, "본문 중심 내용이 공공기관 관련"
         if count(NSSC_RE, text) >= 2:
             return True, "본문에 원안위 관련 내용"

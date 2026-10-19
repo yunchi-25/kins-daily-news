@@ -1,9 +1,10 @@
-streamlit>=1.36
-requests>=2.31
-pandas>=2.1
-openpyxl>=3.1
-beautifulsoup4>=4.12
-lxml>=5.0
-python-dotenv>=1.0
-tzdata>=2024.1
-pytest>=8.0
+# 운영 환경 재현성을 위해 검증된 버전으로 고정 (Python 3.11 이상)
+streamlit==1.66.0
+requests==2.34.2
+pandas==3.0.6
+openpyxl==3.1.5
+beautifulsoup4==4.15.0
+lxml==6.1.3
+python-dotenv==1.2.4
+tzdata==2026.5
+pytest==9.1.1

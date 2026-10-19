@@ -478,14 +478,9 @@ def enrich_article(
             if not original_detail.ok:
                 errors.append(f"원문: {original_detail.error}")
 
-        need_naver = article.naver_url and (
-            original_detail is None
-            or not original_detail.ok
-            or not _detail_time_ok(original_detail, article.api_pub_date, now)
-            or not original_detail.text
-            or not (original_detail.publisher or publisher_from_domain(article.original_url))
-        )
-        if need_naver:
+        # 네이버 뉴스 페이지는 본문 영역(#dic_area)과 언론사 표기가 일정해 판단용 본문이 깨끗하다.
+        # 네이버 링크가 있으면 항상 확인하되, 게시 시각은 원문을 우선한다.
+        if article.naver_url:
             naver_detail = fetch_article_detail(session, article.naver_url, timeout=timeout, retries=retries, max_chars=max_chars)
             if not naver_detail.ok:
                 errors.append(f"네이버: {naver_detail.error}")
@@ -507,7 +502,7 @@ def enrich_article(
     article.publisher = publisher
 
     text = None
-    for d in (original_detail, naver_detail):
+    for d in (naver_detail, original_detail):  # 본문은 네이버(정제된 본문 영역) 우선
         if d is not None and d.ok and d.text and len(d.text) >= MIN_TEXT_LEN:
             text = d.text
             break

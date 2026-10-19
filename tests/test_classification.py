@@ -197,3 +197,56 @@ def test_kins_article_ranks_higher_than_general():
     kins = make_article("KINS, 원전 안전점검 결과 발표", "한국원자력안전기술원은 점검 결과를 발표했다. " * 10, ["KINS"])
     general = make_article("원전 지역 주민 간담회 열려", "원전 지역 주민 간담회가 열렸다. " * 10, ["원전"])
     assert rule_score(kins) > rule_score(general)
+
+
+# ---------------------------------------------------------------------------
+# 실제 검색 결과 점검 후 추가한 규칙
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "title",
+    [
+        "남원시의회 \"행사 줄이고 민생 챙겨라\"",
+        "금천구, 악성민원 대응 강화…전화상담 권장시간 20분 운영",
+        "충북도, ‘2026 대한민국 지방시대 엑스포’로 균형발전 선도",
+        "증평군의회 이창규 의원, 공공기관 유치 컨트롤타워 구축 제안",
+        "[알립니다] 미래에너지 산업 거점 포럼",
+        "한국형원전부터 SMR까지…OOO 전 단장 신간 출간",
+        "현대건설, 호주 에너지 시장 공략… 현지 기업과 협약 체결",
+    ],
+)
+def test_real_world_exclusions(title):
+    assert hard_exclusion(title) is not None
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "창원시, SMR 중심 미래 50년 원전산업 집중 육성",  # 지자체라도 원자력이 핵심이면 포함
+        "공공기관 청렴도 평가 결과 발표",
+        "한-체코 원전 협력 양해각서 체결",  # 정부 간 협력 MOU 는 포함
+        "기재부, 공공기관 통폐합 추진",
+    ],
+)
+def test_real_world_kept(title):
+    assert hard_exclusion(title) is None
+
+
+def test_photo_caption_only_excluded():
+    caption = "[서울=뉴시스] 김OO 기자 = 한국수력원자력 사장이 19일 국회에서 열린 국정감사에서 업무보고를 하고 있다. 2026.10.19. ks@newsis.com"
+    ok, reason = assess(make_article("업무보고하는 한수원 사장", caption, ["원자력"]))
+    assert not ok and "사진" in reason
+
+
+def test_department_name_is_noise():
+    text = "동의과학대 방사선과 학생들이 경진대회에 참가했다. 방사선과 교수는 ... 방사선과 학생 " * 3
+    ok, _ = assess(make_article("동의과학대, PBL 캡스톤디자인 경진대회 성료", text, ["방사선"]))
+    assert not ok
+
+
+def test_foreign_senator_is_not_korean_politics():
+    a = make_article(
+        "빌 게이츠, 주지사·상원의원 데리고 美 SMR 1호기 건설 현장 방문",
+        "테라파워는 미국 와이오밍주에서 SMR 1호기를 건설하고 있다. 원자로 ... " * 3,
+        ["SMR"],
+    )
+    assert classify_rule(a) == TOPIC_FOREIGN
