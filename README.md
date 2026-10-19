@@ -54,18 +54,20 @@ cp .env.example .env        # macOS / Linux
 
 | 변수 | 필수 | 설명 |
 |---|---|---|
-| `NAVER_CLIENT_ID` | 필수 | 네이버 검색 API Client ID |
-| `NAVER_CLIENT_SECRET` | 필수 | 네이버 검색 API Client Secret |
+| `NAVER_CLIENT_ID` | 필수 | NAVER API HUB Client ID (→ `X-NCP-APIGW-API-KEY-ID` 헤더) |
+| `NAVER_CLIENT_SECRET` | 필수 | NAVER API HUB Client Secret (→ `X-NCP-APIGW-API-KEY` 헤더) |
 | `OPENAI_API_KEY` | 선택 | LLM 보조 판단용 API 키 |
 | `OPENAI_MODEL` | 선택 | 사용할 모델명 (코드에 고정하지 않음 — 키와 함께 지정해야 LLM 사용) |
 | `OPENAI_BASE_URL` | 선택 | OpenAI 호환 게이트웨이 주소 (기본 `https://api.openai.com/v1`) |
 | `HTTP_TIMEOUT` 등 | 선택 | 동작 조정값 (`.env.example` 참고) |
 
-### 네이버 검색 API 발급 방법
-1. <https://developers.naver.com> 로그인 → **Application → 애플리케이션 등록**
-2. 사용 API에서 **검색** 선택, 환경은 `WEB 설정`(URL은 `http://localhost` 등 아무 값)
-3. 등록 후 표시되는 **Client ID / Client Secret**을 `.env`에 입력
-4. 일일 호출 한도: 25,000회 (1회 검색 시 키워드 28개 × 최대 10페이지 = 최대 280회)
+### 네이버 뉴스 검색 API 발급 방법 (NAVER API HUB)
+1. **NAVER Cloud Platform > NAVER API HUB > Application** 에서 Application 을 등록합니다.
+2. Application 에 **검색 API** 를 등록(사용 설정)합니다.
+3. 발급된 **Client ID / Client Secret** 을 `.env` 의 `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` 에 입력합니다.
+4. 요청 방식: `GET https://naverapihub.apigw.ntruss.com/search/v1/news`
+   (Header `X-NCP-APIGW-API-KEY-ID`, `X-NCP-APIGW-API-KEY`, 파라미터 `query`, `display`, `start`, `sort=date`)
+5. 1회 검색 시 호출 수: 키워드 28개 × 최대 10페이지 = 최대 280회. 요금·호출 한도는 NAVER Cloud Platform 콘솔에서 확인하세요.
 
 ### (선택) LLM 보조 판단
 `OPENAI_API_KEY`와 `OPENAI_MODEL`을 **모두** 설정하면 관련성·제외 대상·동명이인·주제·같은 사건 여부·중요도 판단에
@@ -105,8 +107,8 @@ streamlit run app.py
 3. Advanced settings 의 **Secrets** 에 아래 내용을 입력합니다 (TOML 형식).
    ```toml
    APP_PASSWORD = "동료들에게 알려줄 접속 비밀번호"
-   NAVER_CLIENT_ID = "네이버 개발자센터 Client ID"
-   NAVER_CLIENT_SECRET = "네이버 개발자센터 Client Secret"
+   NAVER_CLIENT_ID = "NAVER API HUB Client ID"
+   NAVER_CLIENT_SECRET = "NAVER API HUB Client Secret"
    # 선택
    # OPENAI_API_KEY = ""
    # OPENAI_MODEL = ""
@@ -155,7 +157,7 @@ streamlit run app.py
 ## 5. 검색 로직
 
 - **28개 키워드만 각각 독립 검색**합니다 (`src/config.py`의 `NEWS_KEYWORDS`, 순서 고정). 연관어·동의어를 추가 검색하지 않습니다.
-- 네이버 검색 API `sort=date`(최신순), `display=100`, `start=1, 101, …, 901` 순차 조회 (키워드당 최대 1,000건 — API 한도)
+- NAVER API HUB 뉴스 검색 API `sort=date`(최신순), `display=100`, `start=1, 101, …, 901` 순차 조회 (키워드당 최대 1,000건 — API 한도)
 - **조기 중단**: 한 페이지의 가장 오래된 기사가 검색 시작 시각보다 이전이면 다음 페이지를 요청하지 않습니다.
 - API 한도(1,000건)에 걸려 기간 초반 기사가 누락될 수 있으면 화면의 `확인 필요 알림`에 표시합니다.
 - 모든 외부 요청에 timeout(기본 10초)과 exponential backoff 재시도를 적용합니다. 한 키워드/한 기사 실패는 전체 검색을 멈추지 않습니다.
@@ -251,8 +253,8 @@ python -m pytest -q
 | 증상 | 확인 사항 |
 |---|---|
 | `네이버 뉴스 API 인증정보가 설정되어 있지 않습니다` | 프로젝트 폴더에 `.env`가 있는지, `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET` 값이 있는지 확인 후 앱 재시작 |
-| `네이버 API 인증에 실패했습니다` | ID/Secret 오타, 개발자센터 애플리케이션에 **검색** API가 추가되어 있는지 |
-| `호출 한도를 초과했습니다` | 일일 25,000회 한도 — 잠시 후 재시도, 검색 기간 축소 |
+| `네이버 API 인증에 실패했습니다` | ID/Secret 오타, NAVER Cloud Platform > NAVER API HUB > Application 에 **검색 API** 가 등록되어 있는지 |
+| `호출 한도를 초과했습니다` | NAVER API HUB 사용량 한도 확인 — 잠시 후 재시도, 검색 기간 축소 |
 | `최대 조회 한도(1,000건)에 도달` 알림 | 해당 키워드 기사가 매우 많음 — 검색 기간을 나누어 실행 |
 | 검색이 오래 걸림 | `고급 옵션`에서 원문 확인을 끄면 빠르지만 정확도 저하. `.env`의 `ARTICLE_FETCH_WORKERS` 조정 |
 | `본문 확인 불가`가 많음 | 사내 프록시/방화벽이 언론사 사이트를 차단하는지 확인 (네이버 뉴스 페이지로 자동 보완 시도) |

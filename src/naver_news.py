@@ -1,6 +1,7 @@
-"""네이버 뉴스 검색 API 클라이언트.
+"""네이버 뉴스 검색 API 클라이언트 (NAVER Cloud Platform > NAVER API HUB).
 
-- 공식 API: https://openapi.naver.com/v1/search/news.json
+- Endpoint: GET https://naverapihub.apigw.ntruss.com/search/v1/news
+- 인증 Header: X-NCP-APIGW-API-KEY-ID (= NAVER_CLIENT_ID), X-NCP-APIGW-API-KEY (= NAVER_CLIENT_SECRET)
 - 최신순(sort=date) 조회, display 최대 100건, start 최대 1000.
 - 결과가 검색 시작 시각보다 오래된 기사로 넘어가면 다음 페이지 요청을 중단한다.
 """
@@ -19,7 +20,16 @@ from .utils import HttpError, is_naver_news_url, new_session, normalize_title, p
 
 logger = logging.getLogger(__name__)
 
-NAVER_NEWS_API_URL = "https://openapi.naver.com/v1/search/news.json"
+NAVER_NEWS_API_URL = "https://naverapihub.apigw.ntruss.com/search/v1/news"
+NAVER_API_HUB_APP_PATH = "NAVER Cloud Platform > NAVER API HUB > Application"
+
+
+def auth_headers(client_id: str, client_secret: str) -> dict[str, str]:
+    """NAVER API HUB 인증 Header (환경변수 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 매핑)."""
+    return {
+        "X-NCP-APIGW-API-KEY-ID": client_id,
+        "X-NCP-APIGW-API-KEY": client_secret,
+    }
 
 
 class NaverApiError(Exception):
@@ -56,7 +66,8 @@ class NaverNewsClient:
         if not client_id or not client_secret:
             raise NaverAuthError(
                 "네이버 뉴스 API 인증정보가 설정되어 있지 않습니다. "
-                ".env 파일에서 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 설정해주세요."
+                ".env 파일에서 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 설정해주세요. "
+                f"({NAVER_API_HUB_APP_PATH}에서 발급한 Client ID / Client Secret)"
             )
         self.client_id = client_id
         self.client_secret = client_secret
@@ -69,10 +80,7 @@ class NaverNewsClient:
 
     # ------------------------------------------------------------------
     def _request_page(self, keyword: str, start: int) -> dict:
-        headers = {
-            "X-Naver-Client-Id": self.client_id,
-            "X-Naver-Client-Secret": self.client_secret,
-        }
+        headers = auth_headers(self.client_id, self.client_secret)
         params = {"query": keyword, "display": self.display, "start": start, "sort": "date"}
         try:
             resp = request_with_retry(
@@ -90,11 +98,13 @@ class NaverNewsClient:
         if resp.status_code in (401, 403):
             raise NaverAuthError(
                 "네이버 API 인증에 실패했습니다. NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 값과 "
-                "네이버 개발자센터 애플리케이션의 '검색' API 사용 설정을 확인해주세요."
+                f"{NAVER_API_HUB_APP_PATH}에 '검색 API'가 실제로 등록(사용 설정)되어 있는지 확인해주세요."
                 f" (HTTP {resp.status_code}: {_error_message(resp)})"
             )
         if resp.status_code == 429:
-            raise NaverApiError("네이버 API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.")
+            raise NaverApiError(
+                f"네이버 API 호출 한도를 초과했습니다. 잠시 후 다시 시도하거나 {NAVER_API_HUB_APP_PATH}의 사용량 한도를 확인해주세요."
+            )
         if resp.status_code != 200:
             raise NaverApiError(f"네이버 API 오류 (HTTP {resp.status_code}: {_error_message(resp)})")
         try:
@@ -176,6 +186,9 @@ def _to_raw_item(keyword: str, raw: dict, pub: datetime | None, rank: int) -> Ra
 def _error_message(resp: requests.Response) -> str:
     try:
         data = resp.json()
-        return str(data.get("errorMessage") or data.get("errorCode") or "")[:200]
+        err = data.get("error") if isinstance(data.get("error"), dict) else {}  # API Gateway 오류 형식
+        return str(
+            data.get("errorMessage") or err.get("message") or data.get("errorCode") or err.get("errorCode") or ""
+        )[:200]
     except ValueError:
         return (resp.text or "")[:200]
